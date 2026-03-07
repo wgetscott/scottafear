@@ -43,13 +43,12 @@
       overflow-x: hidden;
     }
 
-    /* CANVAS: animated helix strands */
-    #bio-canvas {
+    /* CANVAS */
+    #particle-canvas {
       position: fixed;
-      top: 0; right: 0;
-      width: 340px;
+      inset: 0;
+      width: 100vw;
       height: 100vh;
-      opacity: 0.18;
       pointer-events: none;
       z-index: 0;
     }
@@ -86,21 +85,6 @@
     .nav-logo {
       display: flex; align-items: center; gap: 0.7rem;
     }
-    .nav-helix {
-      width: 18px; height: 18px;
-      display: flex; flex-direction: column; justify-content: space-between;
-    }
-    .nav-helix span {
-      display: block; height: 2px; border-radius: 1px;
-      background: var(--teal);
-      transform-origin: left center;
-    }
-    .nav-helix span:nth-child(1) { width: 100%; opacity: 1; }
-    .nav-helix span:nth-child(2) { width: 70%; opacity: 0.6; margin-left: 30%; }
-    .nav-helix span:nth-child(3) { width: 100%; opacity: 1; }
-    .nav-helix span:nth-child(4) { width: 70%; opacity: 0.6; margin-left: 30%; }
-    .nav-helix span:nth-child(5) { width: 100%; opacity: 1; }
-
     .nav-name {
       font-family: var(--mono);
       font-size: 0.78rem;
@@ -130,6 +114,19 @@
     }
     .nav-links a:hover { color: var(--teal); }
     .nav-links a:hover::after { transform: scaleX(1); }
+    .nav-mark {
+      width: 18px; height: 18px;
+      display: flex; flex-direction: column; justify-content: space-between;
+    }
+    .nav-mark span {
+      display: block; height: 2px; border-radius: 1px;
+      background: var(--teal);
+    }
+    .nav-mark span:nth-child(1) { width: 100%; opacity: 1; }
+    .nav-mark span:nth-child(2) { width: 70%; opacity: 0.6; margin-left: 30%; }
+    .nav-mark span:nth-child(3) { width: 100%; opacity: 1; }
+    .nav-mark span:nth-child(4) { width: 70%; opacity: 0.6; margin-left: 30%; }
+    .nav-mark span:nth-child(5) { width: 100%; opacity: 1; }
 
     /* LAYOUT */
     .page { padding-top: 54px; position: relative; z-index: 1; }
@@ -596,7 +593,6 @@
       .nav-links { display: none; }
       h1 { font-size: 2.8rem; }
       .research-grid { grid-template-columns: 1fr; }
-      #bio-canvas { display: none; }
     }
   </style>
 </head>
@@ -606,13 +602,14 @@
   <div class="ambient amb1"></div>
   <div class="ambient amb2"></div>
 
-  <!-- Helix canvas -->
-  <canvas id="bio-canvas"></canvas>
+  <!-- Particle canvas -->
+  <canvas id="particle-canvas"></canvas>
+  
   
   <!-- NAV -->
   <nav>
     <div class="nav-logo">
-      <div class="nav-helix">
+      <div class="nav-mark">
         <span></span><span></span><span></span><span></span><span></span>
       </div>
       <span class="nav-name">Scott <em>Fear</em></span>
@@ -900,7 +897,7 @@
       <div class="container">
         <div class="footer-inner">
           <div class="footer-left">
-            <div class="nav-helix" style="opacity:0.4">
+            <div class="nav-mark" style="opacity:0.4">
               <span></span><span></span><span></span><span></span><span></span>
             </div>
             <span class="footer-name">Scott Fear</span>
@@ -913,88 +910,92 @@
       </div>
     </footer>
   </div>
-
   <script>
-    /* COURSES TOGGLE */
-    function toggleCourses() {
-      const el  = document.getElementById('courses');
-      const btn = document.getElementById('toggle-btn');
-      el.classList.toggle('open');
-      btn.classList.toggle('open');
+    const canvas = document.getElementById('particle-canvas');
+    const ctx = canvas.getContext('2d');
+
+    let width = canvas.width = window.innerWidth;
+    let height = canvas.height = window.innerHeight;
+
+    const particles = [];
+    const particleCount = 60;
+    const maxDistance = 140;  // sparse connections
+
+    window.addEventListener('resize', () => {
+      width = canvas.width = window.innerWidth;
+      height = canvas.height = window.innerHeight;
+    });
+
+    class Particle {
+      constructor() {
+        this.x = Math.random() * width;
+        this.y = Math.random() * height;
+        this.baseRadius = 1 + Math.random() * 2;
+        this.radius = this.baseRadius;
+        this.vx = (Math.random() - 0.5) * 0.4; 
+        this.vy = (Math.random() - 0.5) * 0.4;
+        this.opacity = 0.2 + Math.random() * 0.4;
+        this.opacityDir = Math.random() < 0.5 ? 0.005 : -0.005;
+      }
+
+      update() {
+        this.x += this.vx;
+        this.y += this.vy;
+
+        if (this.x < 0 || this.x > width) this.vx *= -1;
+        if (this.y < 0 || this.y > height) this.vy *= -1;
+
+        // pulse opacity
+        this.opacity += this.opacityDir;
+        if (this.opacity > 0.6 || this.opacity < 0.2) this.opacityDir *= -1;
+
+        // pulse size gently
+        this.radius = this.baseRadius * (0.8 + 0.4 * (this.opacity / 0.6));
+        this.draw();
+      }
+
+      draw() {
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(0,200,180,${this.opacity})`;
+        ctx.fill();
+      }
     }
 
-    /* HELIX CANVAS */
-    (function() {
-      const canvas = document.getElementById('bio-canvas');
-      const ctx    = canvas.getContext('2d');
-      let W, H, t = 0;
+    for (let i = 0; i < particleCount; i++) {
+      particles.push(new Particle());
+    }
 
-      function resize() {
-        W = canvas.width  = canvas.offsetWidth;
-        H = canvas.height = canvas.offsetHeight;
-      }
-      resize();
-      window.addEventListener('resize', resize);
-
-      const TEAL  = '#00c896';
-      const AQUA  = '#00e5d4';
-      const MUTED = '#1e3040';
-
-      function draw() {
-        ctx.clearRect(0, 0, W, H);
-
-        const cx   = W / 2;
-        const amp  = W * 0.28;
-        const freq = 0.018;
-        const speed = 0.008;
-
-        // draw two strands
-        for (let strand = 0; strand < 2; strand++) {
-          const offset = strand === 0 ? 0 : Math.PI;
-          ctx.beginPath();
-          for (let y = 0; y < H; y += 2) {
-            const x = cx + Math.sin(y * freq + t + offset) * amp;
-            if (y === 0) ctx.moveTo(x, y);
-            else ctx.lineTo(x, y);
+    function connectParticles() {
+      for (let i = 0; i < particleCount; i++) {
+        for (let j = i + 1; j < particleCount; j++) {
+          const dx = particles[i].x - particles[j].x;
+          const dy = particles[i].y - particles[j].y;
+          const dist = Math.sqrt(dx*dx + dy*dy);
+          if (dist < maxDistance) {
+            ctx.beginPath();
+            ctx.strokeStyle = `rgba(0,200,180,${0.15 * (1 - dist / maxDistance)})`;
+            ctx.moveTo(particles[i].x, particles[i].y);
+            ctx.lineTo(particles[j].x, particles[j].y);
+            ctx.stroke();
           }
-          ctx.strokeStyle = strand === 0 ? TEAL : AQUA;
-          ctx.lineWidth = 1.5;
-          ctx.stroke();
         }
-
-        // draw rungs
-        const step = 28;
-        for (let y = (t * 60) % step; y < H; y += step) {
-          const x1 = cx + Math.sin(y * freq + t)          * amp;
-          const x2 = cx + Math.sin(y * freq + t + Math.PI) * amp;
-          const alpha = 0.3 + 0.2 * Math.sin(y * 0.04 + t);
-          ctx.beginPath();
-          ctx.moveTo(x1, y);
-          ctx.lineTo(x2, y);
-          ctx.strokeStyle = MUTED;
-          ctx.globalAlpha = alpha;
-          ctx.lineWidth = 1;
-          ctx.stroke();
-          ctx.globalAlpha = 1;
-
-          // base pair dots
-          ctx.fillStyle = TEAL;
-          ctx.globalAlpha = alpha * 0.8;
-          ctx.beginPath();
-          ctx.arc(x1, y, 2.5, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.fillStyle = AQUA;
-          ctx.beginPath();
-          ctx.arc(x2, y, 2.5, 0, Math.PI * 2);
-          ctx.fill();
-          ctx.globalAlpha = 1;
-        }
-
-        t += speed;
-        requestAnimationFrame(draw);
       }
-      draw();
-    })();
+    }
+
+    function animate() {
+      ctx.clearRect(0, 0, width, height);
+      particles.forEach(p => p.update());
+      connectParticles();
+      requestAnimationFrame(animate);
+    }
+
+    animate();
+
+    function toggleCourses() {
+      document.getElementById('courses').classList.toggle('open');
+      document.getElementById('toggle-btn').classList.toggle('open');
+    }
   </script>
 </body>
 </html>
